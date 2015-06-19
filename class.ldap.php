@@ -23,7 +23,7 @@ class Ldap {
 	 * to ldap_* funcs, usually with ldap_bind().
 	 */
 	public function check_ldap(){
-		//$this->write_log("[function]> check_ldap");
+		$this->write_log("[function]> check_ldap called.");
 		if (!$this->ldap_conn()) {
 			return $this->getErrorString();
 		}
@@ -44,6 +44,7 @@ class Ldap {
 	}
 	
 	public function load_default_config(){
+		$this->write_log("[function]> load_default_config called.");
 		$this->config['host'] = 'localhost';
 		$this->config['basedn'] = 'ou=people,dc=example,dc=com'; // racine !
 		$this->config['port'] = ''; // if port is empty, I count on the software to care of it !
@@ -59,6 +60,7 @@ class Ldap {
 	}
 	
 	function load_config() {
+		$this->write_log("[function]> load__config called.");
 		// first we load the base config
 		$conf_file = @file_get_contents( LDAP_LOGIN_PATH.'data.dat' );
 		if ($conf_file!==false)
@@ -69,6 +71,7 @@ class Ldap {
 
 	function save_config()
 	{
+		$this->write_log("[function]> save_config called.");
 		$file = fopen( LDAP_LOGIN_PATH.'/data.dat', 'w' );
 		fwrite($file, serialize($this->config) );
 		fclose( $file );
@@ -76,6 +79,7 @@ class Ldap {
 
 	function ldap_admin_menu($menu)
 	{
+		$this->write_log("[function]> ldap_admin_menu called.");
 		array_push($menu,
 		array(
 		'NAME' => 'Ldap Login',
@@ -86,6 +90,7 @@ class Ldap {
 
 	// LDAP connection public
 	public function ldap_conn(){
+		$this->write_log("[function]> ldap_conn called.");
 		if( $this->cnx = $this->make_ldap_conn() ){
 			return true;
 		}
@@ -94,6 +99,7 @@ class Ldap {
 	
 	// LDAP connection private
 	private function make_ldap_conn(){
+		$this->write_log("[function]> make_ldap_conn called.");
 		if ($this->config['ld_use_ssl'] == 1){
 			if (empty($this->config['port'])){
 				$this->config['uri'] = 'ldaps://'.$this->config['host'];
@@ -122,11 +128,13 @@ class Ldap {
 	
 	// return ldap error
 	public function getErrorString(){
+		$this->write_log("[function]> getErrorString called.");
                 return ldap_err2str(ldap_errno($this->cnx));
         }
 	
 	// return the name ldap understand
 	public function ldap_name($name){
+		$this->write_log("[function]> ldap_name called.");
 		return $this->config['ld_attr'].'='.$name.','.$this->config['basedn'];
 	}
 	
@@ -153,6 +161,7 @@ class Ldap {
 	}
 	
 	public function ldap_mail($name){
+		$this->write_log("[function]> ldap_mail called.");
 		//echo $this->cnx;
 		//echo $this->ldap_name($name);
 		$sr=@ldap_read($this->cnx, $this->ldap_name($name), "(objectclass=*)", array('mail'));
@@ -167,7 +176,8 @@ class Ldap {
 	// return userdn (and username) for authentication
 	public function ldap_search_dn($value_to_search){
 		$this->write_log("[function]> ldap_search_dn(".$value_to_search.")");
-		$filter = '(&(objectCategory=person)('.$this->config['ld_attr'].'='.$value_to_search.'))';
+//		$filter = '(&(objectCategory=person)('.$this->config['ld_attr'].'='.$value_to_search.'))';
+		$filter = '(&(objectClass=person)('.$this->config['ld_attr'].'='.$value_to_search.'))';
 
 		// connection handling
 		$this->write_log("[ldap_search_dn]> Connecting to server");
@@ -182,10 +192,8 @@ class Ldap {
 			$this->write_log("[ldap_search_dn]> Cannot bind to server!");
 			return false;
 		}
-		
-		$this->write_log("[ldap_search_dn]> @ldap_search(\$this->cnx,".$this->config['basedn'].",".$filter.",array('dn'),0,1)");
-
 		// look for our attribute and get always the DN for login
+		$this->write_log("[ldap_search_dn]> @ldap_search(\$this->cnx,".$this->config['basedn'].",".$filter.",array('dn'),0,1)");
 		//if($search = ldap_search($bcnx,$this->config['basedn'],$filter,array('dn'),0,1)){
 		if($search = @ldap_search($this->cnx,$this->config['basedn'],$filter,array('dn'),0,1)){
 			$this->write_log("[ldap_search_dn]> ldap_search successfull");
@@ -195,6 +203,15 @@ class Ldap {
 			if (!empty($entry[0]["dn"])) {
 				$this->write_log("[ldap_search_dn]> RESULT: ".$entry[0]["dn"]);
 				//@ldap_unbind($bcnx);
+				//check LDAP group membership
+				$this->write_log("[ldap_search_dn]> Looking for groupmembership");
+				$dn_group=$this->config['ld_group'];
+				$dn_user=$entry[0]["dn"];
+				if(!$this->check_ldap_group_membership($dn_user, $dn_group)){
+					$this->write_log("[ldap_search_dn]> Member $dn_user not found in $dn_group");
+					return;
+				}
+				$this->write_log("[ldap_search_dn]> Member $dn_user found in $dn_group");
 				return $entry[0]["dn"];
 			}
 			$this->write_log("[ldap_search_dn]> result is empty!");
@@ -220,16 +237,16 @@ class Ldap {
                         return false;
                 }
 		// search for all memberOf-attributes for a given user_dn
-		$this->write_log("[check_ldap_group_membership]> @ldap_search(\$this->cnx,\"".$user_dn."\",\"(objectClass=*)\", array(\"memberOf\"),0,1)");
-		if($search = @ldap_search($this->cnx, $user_dn, "(objectClass=*)", array("memberOf"),0,1)){
+		$this->write_log("[check_ldap_group_membership]> @ldap_search(\$this->cnx,\"".$group_dn."\",\"(objectClass=*)\", array(\"member\"),0,1)");
+		if($search = @ldap_search($this->cnx, $group_dn, "(objectClass=*)", array("member"),0,1)){
 			$entry = @ldap_get_entries($this->cnx, $search);
 			//check if there are memberof-attributes
-			if(isset($entry[0]["memberof"])){
-				$this->write_log("[check_ldap_group_membership]> Found ". $entry[0]["memberof"]["count"] ." memberOf-attributes");
-       		        	for($i=0; $i < $entry["0"]["memberof"]["count"]; $i++){
-        	        	        $this->write_log("[check_ldap_group_membership]> checking: ". $entry["0"]["memberof"][$i]);
-					if(strcmp($group_dn,$entry["0"]["memberof"][$i]) == 0){
-						$this->write_log("[check_ldap_group_membership]> Match found for \"". $group_dn ."\" AND \"".$entry["0"]["memberof"][$i]."\"");
+			if(isset($entry[0]["member"])){
+				$this->write_log("[check_ldap_group_membership]> Found ". $entry[0]["member"]["count"] ." member-attributes");
+       		        	for($i=0; $i < $entry["0"]["member"]["count"]; $i++){
+        	        	        $this->write_log("[check_ldap_group_membership]> checking: ". $entry["0"]["member"][$i]);
+					if(strcmp($user_dn,$entry["0"]["member"][$i]) == 0){
+						$this->write_log("[check_ldap_group_membership]> Match found for \"". $group_dn ."\" AND \"".$entry["0"]["member"][$i]."\"");
 						return true;
 					}
 				}
@@ -245,12 +262,14 @@ class Ldap {
 	
 	
 	public function getAttr() {
+		$this->write_log("[function]> getAttr called.");
 		$search = @ldap_read($this->cnx, "cn=subschema", "(objectClass=*)", array('*', 'subschemasubentry'));
 		$entries = @ldap_get_entries($this->cnx, $search);
 		echo count($entries);
 	}
 	
 	public function getRootDse() {	
+		$this->write_log("[function]> getRootDse called.");
 		$search = @ldap_read($this->cnx, NULL, 'objectClass=*', array("*", "+"));
 		$entries = @ldap_get_entries($this->cnx, $search);
 		return $entries[0];
@@ -258,6 +277,7 @@ class Ldap {
 
 
 	public function ldap_check_basedn(){
+		$this->write_log("[function]> ldap_check_basedn called.");
 		if ($read = @ldap_read($this->cnx,$this->config['basedn'],'(objectClass=*)',array('dn'))){
 			$entry = @ldap_get_entries($this->cnx, $read);
 			if (!empty($entry[0]['dn'])) {

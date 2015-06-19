@@ -1,6 +1,10 @@
 # Ldap_Login
 LDAP authentication plugin for piwigo with user-group support
 
+## ChangeLog
+20151906(RB): Anpassungen für OpenLDAP vorgenommen. Der Benutzer muss vom Typ inetOrgPerson und die Gruppe vom Typ groupOfNames sein.
+20151906(RB): Beim Anmelden wurde nicht geprüft, ob der Benutzer Mitglied in der entsprechenden LDAP-Gruppe ist.
+
 ## Exmaple-Config for an M$-AD:
 
 #### LDAP-Serververbindung
@@ -10,7 +14,7 @@ LDAP authentication plugin for piwigo with user-group support
 
 #### LDAP Attribute
 **Base DN wo LDAP-Benutzer gefunden werden sollen (zB.: ou=users,dc=example,dc=com):**: cn=Users,dc=example,dc=com</br>
-**Attribute entsprechend des Benutzernamens**: sAMACcountName</br>
+**Attribute entsprechend des Benutzernamens**: sAMACcountName (uid bei OpenLDAP)</br>
 **DN of group for membership-check (memberOf)**: dn=piwigo_users,cn=Users,dc=example,dc=com</br>
 
 #### LDAP-Verbindungsreferenzen
